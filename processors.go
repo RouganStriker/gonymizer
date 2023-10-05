@@ -44,6 +44,81 @@ const lowercaseSetLen = 26
 const uppercaseSetLen = 26
 const numericSetLen = 10
 
+// Used to track uniquely generated email addresses
+type safeUniqueEmailMap struct {
+	v   map[string]struct{}
+	mux sync.Mutex
+}
+
+// Get returns a string that an input is mapped to under a parentKey.
+func (c *safeUniqueEmailMap) Get() (string, error) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	var uniqueEmail = ""
+	var found struct{}
+	count := 0
+
+	for count = 0; count < 10; count++ {
+		uniqueEmail = fake.EmailAddress()
+		_, ok := c.v[uniqueEmail]
+
+		if !ok {
+			c.v[uniqueEmail] = found
+			break
+		}
+	}
+	fmt.Println("Generated email " + uniqueEmail)
+	if count < 10 {
+		return uniqueEmail, nil
+	} else {
+		errorMessage := "Unable to generate a unique email address after 10 attempts and failed."
+		log.Errorf(errorMessage)
+		return "", errors.New(errorMessage)
+	}
+}
+
+var UniqueEmailMap = safeUniqueEmailMap{
+	v: make(map[string]struct{}),
+}
+
+// Get returns a string that an input is mapped to under a parentKey.
+func (c *safeUniqueEmailRelationalMap) Get(parentKey, input string) (string, error) {
+	var result string
+
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	emailMap, ok := c.v[parentKey]
+
+	if !ok {
+		emailMap = map[string]string{}
+		c.v[parentKey] = emailMap
+	}
+
+	result, ok = emailMap[input]
+	if !ok {
+		email, error := UniqueEmailMap.Get()
+
+		if error != nil {
+			return email, error
+		}
+		emailMap[input] = email
+		result = email
+	}
+	return result, nil
+}
+
+// Used to lookup email address to ensure we scramble them to the same values
+type safeUniqueEmailRelationalMap struct {
+	v   map[string]map[string]string
+	mux sync.Mutex
+}
+
+var UniqueEmailRelationMap = safeUniqueEmailRelationalMap{
+	v: make(map[string]map[string]string),
+}
+
 // safeAlphaNumericMap is a concurrency-safe map[string]map[string][string]
 type safeAlphaNumericMap struct {
 	v   map[string]map[string]string
@@ -121,29 +196,30 @@ var UUIDMap = safeUUIDMap{
 // init initializes the ProcessorCatalog map for all processors. A processor must be listed here to be accessible.
 func init() {
 	ProcessorCatalog = map[string]ProcessorFunc{
-		"AlphaNumericScrambler": ProcessorAlphaNumericScrambler,
-		"EmptyJson":             ProcessorEmptyJson,
-		"FakeStreetAddress":     ProcessorAddress,
-		"FakeCity":              ProcessorCity,
-		"FakeLatitude":          ProcessorLatitude,
-		"FakeLongitude":         ProcessorLongitude,
-		"FakeCompanyName":       ProcessorCompanyName,
-		"FakeEmailAddress":      ProcessorEmailAddress,
-		"FakeFirstName":         ProcessorFirstName,
-		"FakeFullName":          ProcessorFullName,
-		"FakeIPv4":              ProcessorIPv4,
-		"FakeLastName":          ProcessorLastName,
-		"FakePhoneNumber":       ProcessorPhoneNumber,
-		"FakeState":             ProcessorState,
-		"FakeStateAbbrev":       ProcessorStateAbbrev,
-		"FakeUsername":          ProcessorUserName,
-		"FakeZip":               ProcessorZip,
-		"Identity":              ProcessorIdentity, // Default: Does not modify field
-		"RandomBoolean":         ProcessorRandomBoolean,
-		"RandomDate":            ProcessorRandomDate,
-		"RandomDigits":          ProcessorRandomDigits,
-		"RandomUUID":            ProcessorRandomUUID,
-		"ScrubString":           ProcessorScrubString,
+		"AlphaNumericScrambler":    ProcessorAlphaNumericScrambler,
+		"EmptyJson":                ProcessorEmptyJson,
+		"FakeStreetAddress":        ProcessorAddress,
+		"FakeCity":                 ProcessorCity,
+		"FakeLatitude":             ProcessorLatitude,
+		"FakeLongitude":            ProcessorLongitude,
+		"FakeCompanyName":          ProcessorCompanyName,
+		"FakeEmailAddress":         ProcessorEmailAddress,
+		"FakeUniqueEmailAddress":   ProcessorUniqueEmailAddress,
+		"FakeFirstName":            ProcessorFirstName,
+		"FakeFullName":             ProcessorFullName,
+		"FakeIPv4":                 ProcessorIPv4,
+		"FakeLastName":             ProcessorLastName,
+		"FakePhoneNumber":          ProcessorPhoneNumber,
+		"FakeState":                ProcessorState,
+		"FakeStateAbbrev":          ProcessorStateAbbrev,
+		"FakeUsername":             ProcessorUserName,
+		"FakeZip":                  ProcessorZip,
+		"Identity":                 ProcessorIdentity, // Default: Does not modify field
+		"RandomBoolean":            ProcessorRandomBoolean,
+		"RandomDate":               ProcessorRandomDate,
+		"RandomDigits":             ProcessorRandomDigits,
+		"RandomUUID":               ProcessorRandomUUID,
+		"ScrubString":              ProcessorScrubString,
 	}
 
 }
@@ -194,6 +270,17 @@ func ProcessorLongitude(cmap *ColumnMapper, input string) (string, error) {
 func ProcessorEmailAddress(cmap *ColumnMapper, input string) (string, error) {
 	return fake.EmailAddress(), nil
 }
+
+// ProcessorUniqueEmailAddress will return a unique e-mail address that is >= 0.4 Jaro-Winkler similar than the input.
+func ProcessorUniqueEmailAddress(cmap *ColumnMapper, input string) (string, error) {
+	if cmap.ParentSchema != "" && cmap.ParentTable != "" && cmap.ParentColumn != "" {
+		parentKey := fmt.Sprintf("%s.%s.%s", cmap.ParentSchema, cmap.ParentTable, cmap.ParentColumn)
+		return UniqueEmailRelationMap.Get(parentKey, input)
+	} else {
+		return UniqueEmailMap.Get()
+	}
+}
+
 
 // ProcessorFirstName will return a first name that is >= 0.4 Jaro-Winkler similar than the input.
 func ProcessorFirstName(cmap *ColumnMapper, input string) (string, error) {

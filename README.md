@@ -246,6 +246,7 @@ Below is a list of fake data creators and scramblers. This table may not be up t
 | FakeLongitude | Used to replace a longitude column
 | FakeCompanyName | Used to replace a company name
 | FakeEmailAddress | Used to replace e-mail with a fake one
+| FakeUniqueEmailAddress | Used to replace an e-mail with a unique new fake e-mail
 | FakeFirstName | Used to replace a person's first name with a fake first name (non-gender specific)
 | FakeIPv4 | Used to replace an IP with a fake one
 | FakeLastName | Used to replace a person's last name with a fake last name
@@ -318,6 +319,7 @@ and stolen, an attacker will gain full access of the mapping of `(PHI, PII) => (
 Currently we only allow for global mapping of the following processors (more may be added later):
 * AlphaNumericScrambler
 * RandomUUID
+* FakeUniqueEmailAddress
 
 They can be found in the processor.go file:
 ```

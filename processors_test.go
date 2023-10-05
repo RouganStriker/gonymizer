@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
+	"github.com/icrowley/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -119,6 +119,69 @@ func TestProcessorEmailAddress(t *testing.T) {
 	output, err = ProcessorEmailAddress(&cMap, "")
 	require.Nil(t, err)
 	require.NotEqual(t, output, "")
+}
+
+func TestProcessorUniqueEmailAddress(t *testing.T) {
+	var found struct{}
+	var preComputedEmails = []string{
+		"maiores@Quatz.gov",
+		"NormaReed@Photobean.info",
+		"EmilyGilbert@Jaxnation.info",
+		"quisquam_temporibus_magni@Chatterbridge.edu",
+		"et@Wordware.net",
+		"cRussell@Pixoboo.com",
+		"adipisci_autem_dolorem@Skidoo.name",
+		"perspiciatis_sed@Vitz.mil",
+		"deleniti_dolores_voluptate@Photojam.org",
+		"nulla_recusandae_nesciunt@Cogibox.gov",
+	}
+	var parentColumnMapper ColumnMapper
+	var sameParentColumnMapper ColumnMapper
+
+	parentColumnMapper.ParentSchema = "test_schema"
+	parentColumnMapper.ParentTable = "test_table"
+	parentColumnMapper.ParentColumn = "test_column"
+
+	sameParentColumnMapper.TableSchema = "test_schema"
+	sameParentColumnMapper.TableName = "test_table"
+	sameParentColumnMapper.ColumnName = "test_column2"
+	sameParentColumnMapper.ParentSchema = "test_schema"
+	sameParentColumnMapper.ParentTable = "test_table"
+	sameParentColumnMapper.ParentColumn = "test_column2"
+
+	output, err := ProcessorUniqueEmailAddress(&cMap, "rick@morty.example.com")
+	require.Nil(t, err)
+	require.NotEqual(t, output, "rick@morty.example.com")
+
+	output, err = ProcessorUniqueEmailAddress(&cMap, "")
+	require.Nil(t, err)
+	require.NotEqual(t, output, "")
+
+	fake.Seed(5336)
+	for _, email := range preComputedEmails {
+		UniqueEmailMap.v[email] = found
+	}
+	output, err = ProcessorUniqueEmailAddress(&cMap, "bob@example.com")
+	require.NotNil(t, err)
+
+	outputA, err := ProcessorAlphaNumericScrambler(&parentColumnMapper, "sara@example.com")
+	require.Nil(t, err)
+	outputB, err := ProcessorAlphaNumericScrambler(&parentColumnMapper, "timmy@example.com")
+	require.Nil(t, err)
+	outputC, err := ProcessorAlphaNumericScrambler(&parentColumnMapper, "sara@example.com")
+	require.Nil(t, err)
+
+	require.Equal(t, outputA, outputC)
+	require.NotEqual(t, outputA, outputB)
+
+	outputD, err := ProcessorAlphaNumericScrambler(&sameParentColumnMapper, "josh@example.com")
+	require.Nil(t, err)
+	require.NotEqual(t, outputD, "")
+	outputE, err := ProcessorAlphaNumericScrambler(&sameParentColumnMapper, "josh@example.com")
+	require.Nil(t, err)
+	require.NotEqual(t, output, "")
+
+	require.Equal(t, outputD, outputE)
 }
 
 func TestProcessorFirstName(t *testing.T) {
